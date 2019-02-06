@@ -1,0 +1,179 @@
+<!DOCTYPE HTML>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Getting Started: Serving Web Content</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+    
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <script>
+
+        $(document).ready(function() {
+            refreshTaskTable()
+
+            function refreshTaskTable(){
+                $('#task_table').empty();
+                $.ajax({
+                    url: "/getTasks"
+                }).then(function(data) {
+                    if (data.length > 0){
+                        for(let tsk of data){
+                            buildTableRow(tsk);
+                        }
+                    }
+                });
+            }
+
+            function editTask(id){
+                var newTask = $("#"+ id).val();
+                $.ajax({
+                    url: '/editTask/' + id,
+                    dataType: 'json',
+                    type: 'put',
+                    contentType: 'application/json',
+                    data: JSON.stringify( { "task": newTask} ),
+                    processData: false,
+                    success: function( data, textStatus, jQxhr ){
+                        console.log("Edited task: " + data.task);
+                    },
+                    error: function( jqXhr, textStatus, errorThrown ){
+                        console.log( errorThrown );
+                    }
+                }); 
+            }
+
+            function deleteTask(id){
+                $.ajax({
+                    url: '/deleteTask/' + id,
+                    type: "DELETE",
+                    success: function(result) {
+                        console.log("Deleted task: " + result);
+                                refreshTaskTable();
+                             }
+                }); 
+            }
+
+            function persistSubtask(taskId) {
+                $.ajax({
+                    url: '/addSubTask/' + taskId,
+                    dataType: 'json',
+                    type: 'post',
+                    contentType: 'application/json',
+                    data: JSON.stringify( { "subTask": $("#subtaskInput").val() } ),
+                    processData: false,
+                    success: function( data, textStatus, jQxhr ){
+                        console.log("Added subtask: " + data.subtask);
+                       // buildTableRow(data);
+                        $('#subtaskInput').val("");   
+                    },
+                    error: function( jqXhr, textStatus, errorThrown ){
+                        console.log( errorThrown );
+                    }
+                }); 
+            }
+
+            function addDetails(task) {
+                window.localStorage.setItem("curr_tsk", JSON.stringify(task));
+                $("#subtaskInput").focus();
+               
+            }
+
+            function showSteps(task){
+                $('#task_details').empty();
+                $('#curr_task_name').text('Steps to complete "' + task.task + '"');
+                $.ajax({
+                    url: "/getTaskSteps/" + task.id
+                }).then(function(data) {
+                    if (data.length > 0){
+                        for(let step of data){
+                           // buildTableRow(tsk);
+                           $("#task_details").append('<li>' + step.subTask + '</li>');
+                        }
+                    }
+                });
+                            
+            }
+
+            function buildTableRow(tsk){
+                var tdTask = '<td><input type="text" id="'+ tsk.id + '" value="' + tsk.task + '"/></td>';
+                    var tdEdit = '<td><a id=edit' +tsk.id + '>Edit</a></td>';
+                    var tdAddDetails = '<td><a id=addDetails' +tsk.id + '>Add details</a></td>';
+                    var tdShowSteps = '<td><a id=showSteps' +tsk.id + '>Show steps</a></td>';
+                    var tdDelete = '<td><a id=del' +tsk.id + '>Delete</a></td>';
+                    $("#task_table").append('<tr>');
+                    $("#task_table").append(tdTask);
+                    $("#task_table").append(tdEdit);
+                    $("#task_table").append(tdAddDetails);
+                    $("#task_table").append(tdShowSteps);
+                    $("#task_table").append(tdDelete);
+                    $("#task_table").append('</tr>');
+                    $('#edit'+tsk.id).click(function() {
+                        editTask(tsk.id)
+                    }); 
+                    $('#addDetails'+tsk.id).click(function() {
+                        addDetails(tsk)
+                    });
+                    $('#showSteps'+tsk.id).click(function() {
+                        showSteps(tsk)
+                    });
+                    $('#del'+tsk.id).click(function() {
+                        deleteTask(tsk.id)
+                    }); 
+            }
+
+            $('#subtaskLink').click(function() {
+                    let taskId=JSON.parse(window.localStorage.getItem("curr_tsk")).id;
+                        persistSubtask(taskId);
+                    });
+
+            $("#save").click(function(){
+                var newtask = $("#task").val(); 
+                $.ajax({
+                    url: '/addTask',
+                    dataType: 'json',
+                    type: 'post',
+                    contentType: 'application/json',
+                    data: JSON.stringify( { "task": newtask } ),
+                    processData: false,
+                    success: function( data, textStatus, jQxhr ){
+                        console.log("Added task: " + data.task);
+                        buildTableRow(data);
+                        $('#task').val("");   
+                    },
+                    error: function( jqXhr, textStatus, errorThrown ){
+                        console.log( errorThrown );
+                    }
+                }); 
+            })
+        });
+    </script>
+
+</head>
+<body>
+    <div class="container-fluid">
+    <p th:text="${name}"> </p>
+    <h3>Your TODO list</h3><hr>
+    <h4>Add task</h4><br/>
+    <form id="my_form" method="POST">
+        <input type="text"  id="task" name="task" placeholder="Enter your task here"/>
+        <button id="save" type="button">Submit</button>
+    </form>
+    <br><hr>
+    <h4>You have the following tasks to perform:</h4>
+        <table class="table table-bordered" >
+            <tbody id="task_table"></tbody>
+        </table>
+        <div id="subtasks" >
+            <input type="text" id="subtaskInput" placeholder="Enter a sub-task here" />
+            <a id="subtaskLink" class="btn btn-default">Add</a>
+        </div>
+        <br>
+        <div>
+            <pre id="curr_task_name"></pre>
+            <ul id="task_details">
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
